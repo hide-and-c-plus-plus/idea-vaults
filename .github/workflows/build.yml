@@ -1,0 +1,62 @@
+name: Build Idea Vault APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      CI: "1"
+
+    steps:
+      - name: Download repository
+        uses: actions/checkout@v7
+
+      - name: Extract source
+        run: unzip -q source.zip
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: idea-management-app/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Install dependencies
+        working-directory: idea-management-app
+        run: |
+          npm ci
+          npx expo install expo-system-ui --npm
+
+      - name: Generate Android project
+        working-directory: idea-management-app
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Build APK
+        working-directory: idea-management-app/android
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleRelease --no-daemon --max-workers=2 --stacktrace
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: idea-vault-apk
+          path: idea-management-app/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
